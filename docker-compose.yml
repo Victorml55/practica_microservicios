@@ -1,0 +1,134 @@
+name: tienda-microservicios
+
+x-cors: &cors
+  CORS_ORIGIN: http://localhost:4200
+
+services:
+  # ---------------- Bases de datos ----------------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ./db/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      retries: 10
+    networks: [red-tienda]
+
+  mongo:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - mongo-data:/data/db
+    ports: ["27017:27017"]
+    networks: [red-tienda]
+
+  # ---------------- Microservicios ----------------
+  api-usuarios:            # Victor - PHP
+    build: ./api-usuarios
+    ports: ["8001:8001"]
+    environment:
+      <<: *cors
+      JWT_SECRET: ${JWT_SECRET}
+    networks: [red-tienda]
+
+  api-productos:           # Dennis - PHP
+    build: ./api-productos
+    ports: ["8002:8002"]
+    environment:
+      <<: *cors
+      JWT_SECRET: ${JWT_SECRET}
+    networks: [red-tienda]
+
+  api-envios:              # Ricardo - Python
+    build: ./api-envios
+    ports: ["8003:8003"]
+    environment:
+      <<: *cors
+    networks: [red-tienda]
+
+  api-inventario:          # Ricardo - Go
+    build: ./api-inventario
+    ports: ["8004:8004"]
+    environment:
+      <<: *cors
+    networks: [red-tienda]
+
+  api-carrito:             # Omar - Node.js
+    build: ./api-carrito
+    ports: ["8005:8005"]
+    environment:
+      <<: *cors
+      PRODUCTOS_URL: http://api-productos:8002
+    networks: [red-tienda]
+
+  api-pedidos:             # Victor - PHP + PostgreSQL
+    build: ./api-pedidos
+    ports: ["8006:8006"]
+    environment:
+      <<: *cors
+      JWT_SECRET: ${JWT_SECRET}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: pedidos_db
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      INVENTARIO_URL: http://api-inventario:8004
+      CARRITO_URL: http://api-carrito:8005
+      ENVIOS_URL: http://api-envios:8003
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [red-tienda]
+
+  api-pagos:               # Dennis - Java + PostgreSQL
+    build: ./api-pagos
+    ports: ["8007:8007"]
+    environment:
+      <<: *cors
+      DB_URL: jdbc:postgresql://postgres:5432/pagos_db
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      PEDIDOS_URL: http://api-pedidos:8006
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [red-tienda]
+
+  api-resenas:             # Ricardo - Python + MongoDB
+    build: ./api-resenas
+    ports: ["8008:8008"]
+    environment:
+      <<: *cors
+      MONGO_URL: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017
+      MONGO_DB: resenas_db
+    depends_on: [mongo]
+    networks: [red-tienda]
+
+  # ---------------- Frontend ----------------
+  frontend-tienda:         # Omar - Angular
+    build: ./frontend-tienda
+    ports: ["4200:80"]
+    depends_on:
+      - api-usuarios
+      - api-productos
+      - api-envios
+      - api-inventario
+      - api-carrito
+      - api-pedidos
+      - api-pagos
+      - api-resenas
+    networks: [red-tienda]
+
+networks:
+  red-tienda:
+    driver: bridge
+
+volumes:
+  pg-data:
+  mongo-data:

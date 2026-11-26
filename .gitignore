@@ -1,0 +1,13 @@
+.env
+node_modules/
+dist/
+.angular/
+vendor/
+__pycache__/
+*.pyc
+.venv/
+target/
+*.sqlite
+.idea/
+.vscode/
+.DS_Store
