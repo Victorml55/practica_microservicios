@@ -1,3 +1,15 @@
-<!-- TODO (Omar): vistas Catálogo, Detalle, Carrito/Checkout y Mis Pedidos -->
-<h1>Tienda Microservicios</h1>
-<router-outlet />
+<header class="nav">
+  <a routerLink="/" class="logo">Tienda</a>
+  <nav>
+    <a routerLink="/">Catálogo</a>
+    <a routerLink="/checkout">Carrito</a>
+    <a routerLink="/mis-pedidos">Mis pedidos</a>
+    @if (auth.autenticado) {
+      <span>Hola, {{ auth.usuario?.nombre }}</span>
+      <button class="btn secundario" (click)="salir()">Salir</button>
+    } @else {
+      <a routerLink="/login">Entrar</a>
+    }
+  </nav>
+</header>
+<main class="container"><router-outlet /></main>
