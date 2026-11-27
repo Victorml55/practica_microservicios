@@ -13,8 +13,8 @@ const carritos = new Map();
 
 // Datos semilla: usuario demo (id = 1)
 carritos.set(1, [
-  { producto_id: 1, cantidad: 1 },
-  { producto_id: 2, cantidad: 2 },
+  { producto_id: 2, cantidad: 1 },
+  { producto_id: 8, cantidad: 1 },
 ]);
 
 app.get('/health', (req, res) => res.json({ servicio: 'api-carrito', ok: true }));
