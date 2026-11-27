@@ -10,8 +10,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.client.RestClientResponseException;
 
 @RestController
@@ -129,6 +131,18 @@ public class PagosController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(res);
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(formatearComprobante(guardada));
+    }
+
+    // JSON mal formado o tipos incorrectos -> 400 con el formato del equipo { "error": ... }
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<?> jsonInvalido(HttpMessageNotReadableException e) {
+        return error(HttpStatus.BAD_REQUEST, "JSON inválido: revisa pedido_id (entero), monto (número) y metodo_pago (texto)");
+    }
+
+    // pedido_id no numérico en la URL -> 400
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<?> parametroInvalido(MethodArgumentTypeMismatchException e) {
+        return error(HttpStatus.BAD_REQUEST, "Parámetro inválido: " + e.getName());
     }
 
     @GetMapping("/api/pagos/pedido/{pedidoId}")
