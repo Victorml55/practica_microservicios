@@ -7,7 +7,7 @@
 ## Endpoints
 | Método | Ruta | Body / Respuesta |
 |---|---|---|
-| POST | `/api/pagos/procesar` | `{pedido_id, monto, metodo_pago}` → 201 aprobado / 400 rechazado |
+| POST | `/api/pagos/procesar` | `{pedido_id, monto, metodo_pago}` → 201 aprobado / 400 rechazado. Antes de cobrar consulta el pedido (`X-Internal-Key`): debe existir, estar `pendiente` y `monto` debe ser igual a su `total` |
 | GET | `/api/pagos/pedido/{pedido_id}` | Comprobante `{pedido_id, monto, metodo_pago, estado, referencia, fecha}` |
 
 ## Correr solo este servicio

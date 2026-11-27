@@ -9,7 +9,7 @@
 |---|---|---|
 | GET | `/api/productos` | Lista. Opcional `?q=` y `?categoria=` |
 | GET | `/api/productos/{id}` | Detalle o 404 |
-| POST | `/api/productos` | `{nombre, descripcion, precio, categoria, imagen_url}` → 201 |
+| POST | `/api/productos` | **Solo admin (Bearer)**. `{nombre, descripcion, precio, categoria, imagen_url}` → 201 |
 
 ## Correr solo este servicio
 ```bash

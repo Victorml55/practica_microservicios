@@ -1,1 +1,98 @@
-/* You can add global styles to this file, and also import other style files */
+:root {
+  --bg: #FAFAFA;
+  --surface: #FFFFFF;
+  --text: #111111;
+  --muted: #6B7280;
+  --line: #E5E7EB;
+  --accent: #2F5D9E;
+  --danger: #B42318;
+  --radius: 4px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Inter', 'Roboto', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+h2 { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 32px; }
+h3 { font-size: 1.05rem; font-weight: 600; margin: 0 0 12px; }
+h4 { font-size: .95rem; font-weight: 600; margin: 24px 0 8px; }
+p  { margin: 0 0 12px; }
+small { color: var(--muted); }
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Navegación */
+.nav {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 20px 48px; background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.nav nav { display: flex; align-items: center; }
+.nav a { color: var(--text); margin-right: 24px; font-size: .9rem; }
+.nav a:hover { color: var(--accent); text-decoration: none; }
+.nav .logo { font-weight: 600; letter-spacing: -0.01em; margin-right: 0; }
+.nav nav span { color: var(--muted); font-size: .9rem; margin-right: 16px; }
+
+.container { max-width: 1040px; margin: 0 auto; padding: 56px 24px 96px; }
+
+/* Catálogo */
+.filtros { display: flex; gap: 12px; margin-bottom: 40px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 32px; }
+.card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 20px;
+}
+.card img {
+  width: 100%; height: 180px; object-fit: cover;
+  border-radius: var(--radius); background: #F3F4F6; margin-bottom: 16px;
+}
+.card h3 { margin: 0 0 4px; }
+.card p { color: var(--muted); font-size: .9rem; margin: 4px 0 12px; }
+.card .precio, .panel .precio { color: var(--text); font-weight: 600; font-size: 1rem; }
+
+/* Paneles */
+.panel {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 32px; margin-bottom: 24px;
+}
+
+/* Formularios */
+input, select, textarea {
+  font: inherit; color: var(--text); background: var(--surface);
+  padding: 10px 12px; margin: 4px 8px 4px 0;
+  border: 1px solid var(--line); border-radius: var(--radius);
+}
+input:focus, select:focus, textarea:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+
+/* Botones */
+.btn {
+  display: inline-block; font: inherit; font-size: .9rem;
+  padding: 10px 20px; cursor: pointer; text-decoration: none;
+  color: #fff; background: var(--accent);
+  border: 1px solid var(--accent); border-radius: var(--radius);
+}
+.btn:hover { text-decoration: none; opacity: .9; }
+.btn.secundario { color: var(--text); background: transparent; border-color: var(--line); }
+.btn.secundario:hover { border-color: var(--text); opacity: 1; }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Tablas */
+table { width: 100%; border-collapse: collapse; margin-bottom: 32px; }
+th { color: var(--muted); font-weight: 500; font-size: .85rem; }
+th, td { text-align: left; padding: 16px 12px; border-bottom: 1px solid var(--line); }
+
+/* Mensajes */
+.error, .ok {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 12px 16px; margin: 16px 0;
+}
+.error { color: var(--danger); border-left: 2px solid var(--danger); }
+.ok { color: var(--text); border-left: 2px solid var(--accent); }
