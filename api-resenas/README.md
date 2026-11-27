@@ -17,6 +17,11 @@ curl http://localhost:8008/health
 ```
 
 ## Checklist
-- [ ] Promedio con `aggregate` o calculado en Python (redondeado a 1 decimal)
-- [ ] No regresar el `ObjectId` crudo (da error de serialización)
-- [ ] Algunas reseñas semilla
+- [x] Promedio con `aggregate` o calculado en Python (redondeado a 1 decimal)
+- [x] No regresar el `ObjectId` crudo (da error de serialización)
+- [x] Algunas reseñas semilla
+
+## Notas de implementación
+- Cada reseña se regresa como `{id, producto_id, usuario_id, calificacion, comentario, fecha}` (`id` es el ObjectId en texto).
+- Las reseñas semilla se insertan al arrancar solo si la colección está vacía.
+- Un producto sin reseñas regresa `{promedio: 0.0, total: 0, resenas: []}`.
