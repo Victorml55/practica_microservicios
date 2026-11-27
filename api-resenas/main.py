@@ -45,7 +45,12 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="api-resenas", lifespan=lifespan)  # Responsable: Ricardo
+class JSONUTF8(JSONResponse):
+    """JSON con charset=utf-8 para que el navegador muestre bien los acentos."""
+    media_type = "application/json; charset=utf-8"
+
+
+app = FastAPI(title="api-resenas", lifespan=lifespan, default_response_class=JSONUTF8)  # Responsable: Ricardo
 app.add_middleware(CORSMiddleware, allow_origins=[os.getenv("CORS_ORIGIN", "*")],
                    allow_methods=["*"], allow_headers=["*"])
 
@@ -53,19 +58,19 @@ app.add_middleware(CORSMiddleware, allow_origins=[os.getenv("CORS_ORIGIN", "*")]
 # ---------- Errores con el formato del equipo: { "error": "mensaje" } ----------
 @app.exception_handler(StarletteHTTPException)
 async def http_error(_: Request, exc: StarletteHTTPException):
-    return JSONResponse(status_code=exc.status_code, content={"error": str(exc.detail)})
+    return JSONUTF8(status_code=exc.status_code, content={"error": str(exc.detail)})
 
 
 @app.exception_handler(RequestValidationError)
 async def validation_error(_: Request, exc: RequestValidationError):
     err = exc.errors()[0]
     campo = ".".join(str(p) for p in err["loc"] if p != "body") or "body"
-    return JSONResponse(status_code=400, content={"error": f"Dato inválido en '{campo}': {err['msg']}"})
+    return JSONUTF8(status_code=400, content={"error": f"Dato inválido en '{campo}': {err['msg']}"})
 
 
 @app.exception_handler(PyMongoError)
 async def mongo_error(_: Request, exc: PyMongoError):
-    return JSONResponse(status_code=500, content={"error": "Error de base de datos (MongoDB)"})
+    return JSONUTF8(status_code=500, content={"error": "Error de base de datos (MongoDB)"})
 
 
 # ---------- Modelos ----------
