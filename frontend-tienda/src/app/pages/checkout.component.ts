@@ -39,7 +39,7 @@ import { ProductosService } from '../core/productos.service';
 
         <div class="panel">
           <h3>Envío</h3>
-          <input placeholder="Código postal (5 dígitos)" maxlength="5" [(ngModel)]="cp" />
+          <input placeholder="Código postal (5 dígitos)" maxlength="5" [(ngModel)]="cp" (ngModelChange)="cpCambiado()" />
           <button class="btn secundario" (click)="cotizar()">Cotizar envío</button>
           @if (dias() !== null) {
             <p>Costo: {{ costoEnvio() | currency: 'MXN' }} · Llega en {{ dias() }} días</p>
@@ -83,7 +83,7 @@ export class CheckoutComponent implements OnInit {
   cp = '';
   direccion = '';
   metodo = 'tarjeta';
-  private pedidoPendienteId: number | null = null;
+  private pedidoPendiente: { id: number; total: number } | null = null;
 
   subtotal = computed(() => this.items().reduce((s, i) => s + i.precio * i.cantidad, 0));
   total = computed(() => this.subtotal() + this.costoEnvio());
@@ -105,6 +105,13 @@ export class CheckoutComponent implements OnInit {
     });
   }
 
+  // Si cambia el código postal, la cotización anterior ya no vale
+  cpCambiado() {
+    this.dias.set(null);
+    this.costoEnvio.set(0);
+    this.pedidoPendiente = null;
+  }
+
   cotizar() {
     this.error.set('');
     if (!/^\d{5}$/.test(this.cp)) {
@@ -123,27 +130,24 @@ export class CheckoutComponent implements OnInit {
     this.procesando.set(true);
 
     // Si un intento anterior de pago falló, se reutiliza el pedido ya creado
-    if (this.pedidoPendienteId !== null) {
-      this.cobrar(this.pedidoPendienteId);
+    if (this.pedidoPendiente !== null) {
+      this.cobrar(this.pedidoPendiente.id, this.pedidoPendiente.total);
       return;
     }
 
+    // El servidor calcula precios, costo de envío y total; aquí solo se mandan producto y cantidad
     this.pedidosSrv
       .crear({
         usuario_id: this.auth.usuario.id,
         direccion: this.direccion,
         codigo_postal: this.cp,
-        costo_envio: this.costoEnvio(),
-        items: this.items().map((i) => ({
-          producto_id: i.producto_id,
-          cantidad: i.cantidad,
-          precio_unitario: i.precio,
-        })),
+        items: this.items().map((i) => ({ producto_id: i.producto_id, cantidad: i.cantidad })),
       })
       .subscribe({
         next: (p) => {
-          this.pedidoPendienteId = p.id;
-          this.cobrar(p.id);
+          this.pedidoPendiente = { id: p.id, total: Number(p.total) };
+          this.costoEnvio.set(Number(p.costo_envio));
+          this.cobrar(p.id, Number(p.total));
         },
         error: (e) => {
           this.error.set(e.error?.error ?? 'No se pudo crear el pedido');
@@ -152,12 +156,13 @@ export class CheckoutComponent implements OnInit {
       });
   }
 
-  private cobrar(pedidoId: number) {
-    this.pagosSrv.procesar({ pedido_id: pedidoId, monto: this.total(), metodo_pago: this.metodo }).subscribe({
+  // Se cobra el total que calculó api-pedidos (api-pagos lo vuelve a verificar)
+  private cobrar(pedidoId: number, monto: number) {
+    this.pagosSrv.procesar({ pedido_id: pedidoId, monto, metodo_pago: this.metodo }).subscribe({
       next: () => {
         this.confirmado.set(pedidoId);
         this.items.set([]);
-        this.pedidoPendienteId = null;
+        this.pedidoPendiente = null;
         this.procesando.set(false);
       },
       error: (e) => {

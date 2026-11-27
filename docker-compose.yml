@@ -3,6 +3,13 @@ name: tienda-microservicios
 x-cors: &cors
   CORS_ORIGIN: http://localhost:4200
 
+# Variables de seguridad compartidas:
+#   JWT_SECRET   -> firma/valida los tokens de usuario (solo api-usuarios los emite)
+#   INTERNAL_KEY -> header X-Internal-Key para llamadas servicio -> servicio
+x-seguridad: &seguridad
+  JWT_SECRET: ${JWT_SECRET}
+  INTERNAL_KEY: ${INTERNAL_KEY}
+
 services:
   # ---------------- Bases de datos ----------------
   postgres:
@@ -35,37 +42,35 @@ services:
     build: ./api-usuarios
     ports: ["8001:8001"]
     environment:
-      <<: *cors
-      JWT_SECRET: ${JWT_SECRET}
+      <<: [*cors, *seguridad]
     networks: [red-tienda]
 
   api-productos:           # Dennis - PHP
     build: ./api-productos
     ports: ["8002:8002"]
     environment:
-      <<: *cors
-      JWT_SECRET: ${JWT_SECRET}
+      <<: [*cors, *seguridad]
     networks: [red-tienda]
 
   api-envios:              # Ricardo - Python
     build: ./api-envios
     ports: ["8003:8003"]
     environment:
-      <<: *cors
+      <<: [*cors, *seguridad]
     networks: [red-tienda]
 
   api-inventario:          # Ricardo - Go
     build: ./api-inventario
     ports: ["8004:8004"]
     environment:
-      <<: *cors
+      <<: [*cors, *seguridad]
     networks: [red-tienda]
 
   api-carrito:             # Omar - Node.js
     build: ./api-carrito
     ports: ["8005:8005"]
     environment:
-      <<: *cors
+      <<: [*cors, *seguridad]
       PRODUCTOS_URL: http://api-productos:8002
     networks: [red-tienda]
 
@@ -73,38 +78,43 @@ services:
     build: ./api-pedidos
     ports: ["8006:8006"]
     environment:
-      <<: *cors
-      JWT_SECRET: ${JWT_SECRET}
+      <<: [*cors, *seguridad]
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: pedidos_db
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
+      PRODUCTOS_URL: http://api-productos:8002
       INVENTARIO_URL: http://api-inventario:8004
       CARRITO_URL: http://api-carrito:8005
       ENVIOS_URL: http://api-envios:8003
     depends_on:
       postgres: { condition: service_healthy }
+      api-productos: { condition: service_started }
+      api-inventario: { condition: service_started }
+      api-carrito: { condition: service_started }
+      api-envios: { condition: service_started }
     networks: [red-tienda]
 
   api-pagos:               # Dennis - Java + PostgreSQL
     build: ./api-pagos
     ports: ["8007:8007"]
     environment:
-      <<: *cors
+      <<: [*cors, *seguridad]
       DB_URL: jdbc:postgresql://postgres:5432/pagos_db
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       PEDIDOS_URL: http://api-pedidos:8006
     depends_on:
       postgres: { condition: service_healthy }
+      api-pedidos: { condition: service_started }
     networks: [red-tienda]
 
   api-resenas:             # Ricardo - Python + MongoDB
     build: ./api-resenas
     ports: ["8008:8008"]
     environment:
-      <<: *cors
+      <<: [*cors, *seguridad]
       MONGO_URL: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo:27017
       MONGO_DB: resenas_db
     depends_on: [mongo]

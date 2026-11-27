@@ -73,5 +73,6 @@ try {
 
     error('Ruta no encontrada', 404);
 } catch (Throwable $e) {
-    error('Error interno: ' . $e->getMessage(), 500);
+    error_log('[api-usuarios] ' . $e);           // el detalle va al log del contenedor
+    error('Error interno del servidor', 500);
 }

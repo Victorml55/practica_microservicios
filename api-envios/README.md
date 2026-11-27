@@ -8,7 +8,7 @@
 | Método | Ruta | Body / Respuesta |
 |---|---|---|
 | POST | `/api/envios/cotizar` | `{codigo_postal, cantidad}` → `{costo_envio, dias_estimados}` |
-| POST | `/api/envios/generar` | `{pedido_id}` → 201 `{guia, pedido_id, estado}` |
+| POST | `/api/envios/generar` | `{pedido_id}` → 201 `{guia, pedido_id, estado}`. **Solo `X-Internal-Key` o admin** |
 | GET | `/api/envios/rastreo/{guia}` | `{guia, estado: preparando\|en_transito\|entregado}` |
 
 ## Correr solo este servicio
@@ -27,5 +27,5 @@ curl http://localhost:8003/health
   - CP 0/1 → $79, 2 días · 2/3/4 → $99, 3 días · 5/6 → $109, 4 días · 7 → $119, 4 días · 8/9 → $129, 5 días
 - `codigo_postal` debe tener 5 dígitos (texto, p. ej. `"06600"`).
 - Si se llama `generar` dos veces con el mismo `pedido_id`, regresa la misma guía (no duplica).
-- Extra para la demo: `PATCH /api/envios/rastreo/{guia}/avanzar` pasa a `en_transito` y luego a `entregado`.
+- Extra para la demo (**solo admin**): `PATCH /api/envios/rastreo/{guia}/avanzar` pasa a `en_transito` y luego a `entregado`.
 - Las guías viven en memoria: se pierden al reiniciar el contenedor.

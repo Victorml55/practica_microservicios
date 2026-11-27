@@ -30,33 +30,32 @@ try {
     }
 
     // POST /api/pedidos   (requiere token)
-    // { usuario_id, items:[{producto_id, cantidad, precio_unitario}], direccion, codigo_postal, costo_envio }
+    // { usuario_id, items:[{producto_id, cantidad}], direccion, codigo_postal }
+    // El precio de cada producto, el stock y el costo de envío los calcula el servidor
+    // consultando api-productos, api-inventario y api-envios (no se confía en el navegador).
     if ($method === 'POST' && $path === '/api/pedidos') {
         $auth = requerir_auth();
         $b = body();
 
-        $usuario_id    = (int)($b['usuario_id'] ?? 0);
+        $usuario_id    = (int)($b['usuario_id'] ?? $auth['sub'] ?? 0);
         $items         = $b['items'] ?? [];
         $direccion     = trim($b['direccion'] ?? '');
         $codigo_postal = trim((string)($b['codigo_postal'] ?? ''));
-        $costo_envio   = (float)($b['costo_envio'] ?? 0);
 
         if ($usuario_id <= 0 || $direccion === '' || $codigo_postal === '')
             error('usuario_id, direccion y codigo_postal son obligatorios', 400);
+        if (!preg_match('/^\d{5}$/', $codigo_postal))
+            error('codigo_postal debe tener 5 dígitos', 400);
         if (!is_array($items) || count($items) === 0)
             error('El pedido debe tener al menos un item', 400);
-        if ($costo_envio < 0) error('costo_envio no puede ser negativo', 400);
         validar_dueno($auth, $usuario_id);
 
+        $items = preparar_items($items);
+        $piezas = array_sum(array_column($items, 'cantidad'));
+        $costo_envio = round(cotizar_envio($codigo_postal, $piezas), 2);
+
         $subtotal = 0;
-        foreach ($items as $i => $it) {
-            $pid = (int)($it['producto_id'] ?? 0);
-            $cant = (int)($it['cantidad'] ?? 0);
-            $precio = (float)($it['precio_unitario'] ?? -1);
-            if ($pid <= 0 || $cant <= 0 || $precio < 0)
-                error("Item $i inválido: requiere producto_id, cantidad > 0 y precio_unitario", 400);
-            $subtotal += $cant * $precio;
-        }
+        foreach ($items as $it) $subtotal += $it['cantidad'] * $it['precio_unitario'];
         $subtotal = round($subtotal, 2);
         $total = round($subtotal + $costo_envio, 2);
 
@@ -69,7 +68,7 @@ try {
 
         $st = $pdo->prepare('INSERT INTO pedido_items (pedido_id, producto_id, cantidad, precio_unitario) VALUES (?, ?, ?, ?)');
         foreach ($items as $it) {
-            $st->execute([$id, (int)$it['producto_id'], (int)$it['cantidad'], (float)$it['precio_unitario']]);
+            $st->execute([$id, $it['producto_id'], $it['cantidad'], $it['precio_unitario']]);
         }
         $pdo->commit();
 
@@ -87,16 +86,23 @@ try {
         json(array_map(fn($id) => pedido_por_id((int)$id), $st->fetchAll(PDO::FETCH_COLUMN)));
     }
 
-    // GET /api/pedidos/{id}   (extra: lo usa la confirmación de orden y api-pagos)
+    // GET /api/pedidos/{id}   (token del dueño/admin, o X-Internal-Key para api-pagos)
     if ($method === 'GET' && preg_match('#^/api/pedidos/(\d+)$#', $path, $m)) {
+        $interno = clave_interna_valida();
+        $auth = $interno ? null : requerir_auth();
         $p = pedido_por_id((int)$m[1]);
         if (!$p) error('Pedido no encontrado', 404);
+        if ($auth) validar_dueno($auth, $p['usuario_id']);
         json($p);
     }
 
     // PATCH /api/pedidos/{id}/estado   { estado }
-    // Sin token: lo llama api-pagos dentro de la red Docker.
+    // Solo api-pagos (X-Internal-Key) o un admin con token. Un cliente NO puede marcar su pedido como pagado.
     if ($method === 'PATCH' && preg_match('#^/api/pedidos/(\d+)/estado$#', $path, $m)) {
+        if (!clave_interna_valida()) {
+            $auth = requerir_auth();
+            if (($auth['rol'] ?? '') !== 'admin') error('Solo api-pagos o un administrador pueden cambiar el estado', 403);
+        }
         $id = (int)$m[1];
         $nuevo = strtolower(trim(body()['estado'] ?? ''));
         if (!in_array($nuevo, ESTADOS, true))
@@ -114,6 +120,7 @@ try {
         $guia = $pedido['guia'];
         if ($nuevo === 'pagado') {
             $integracion = orquestar_pago($pedido);
+            if (!$integracion['ok']) error($integracion['error'], 400);  // el pedido sigue en pendiente
             $guia = $integracion['guia'] ?? $guia;
         }
 
@@ -128,5 +135,6 @@ try {
     error('Ruta no encontrada', 404);
 } catch (Throwable $e) {
     if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
-    error('Error interno: ' . $e->getMessage(), 500);
+    error_log('[api-pedidos] ' . $e);           // el detalle va al log del contenedor
+    error('Error interno del servidor', 500);   // al cliente no se le exponen detalles
 }

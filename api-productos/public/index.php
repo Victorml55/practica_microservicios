@@ -12,8 +12,36 @@ function json($data, int $status = 200): void {
     exit;
 }
 function body(): array {
-    return json_decode(file_get_contents('php://input'), true) ?? [];
+    $data = json_decode(file_get_contents('php://input'), true);
+    return is_array($data) ? $data : [];
 }
+
+// ---------- JWT (HS256) emitido por api-usuarios: solo un admin puede crear productos ----------
+function b64url_decode(string $d): string|false {
+    return base64_decode(strtr($d, '-_', '+/') . str_repeat('=', (4 - strlen($d) % 4) % 4));
+}
+function jwt_payload(): ?array {
+    $secreto = getenv('JWT_SECRET') ?: '';
+    $h = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    if ($secreto === '' || !preg_match('/^Bearer\s+(\S+)$/i', $h, $m) || substr_count($m[1], '.') !== 2) return null;
+    [$cab, $pay, $firma] = explode('.', $m[1]);
+    $esperada = rtrim(strtr(base64_encode(hash_hmac('sha256', "$cab.$pay", $secreto, true)), '+/', '-_'), '=');
+    if (!hash_equals($esperada, $firma)) return null;
+    if ((json_decode(b64url_decode($cab), true)['alg'] ?? '') !== 'HS256') return null;
+    $p = json_decode(b64url_decode($pay), true);
+    return (is_array($p) && ($p['exp'] ?? 0) >= time()) ? $p : null;
+}
+function requerir_admin(): void {
+    $p = jwt_payload();
+    if (!$p) json(['error' => 'Token inválido o ausente'], 401);
+    if (($p['rol'] ?? '') !== 'admin') json(['error' => 'Solo un administrador puede crear productos'], 403);
+}
+
+// Cualquier excepción no controlada responde JSON (no HTML) y el detalle va al log
+set_exception_handler(function (Throwable $e) {
+    error_log('[api-productos] ' . $e);
+    json(['error' => 'Error interno del servidor'], 500);
+});
 
 // ---------- Base de datos SQLite y 10 productos semilla ----------
 $pdo = new PDO('sqlite:' . sys_get_temp_dir() . '/productos.sqlite');
@@ -101,6 +129,7 @@ if ($method === 'GET' && preg_match('#^/api/productos/(\d+)$#', $path, $m)) {
 }
 
 if ($method === 'POST' && $path === '/api/productos') {
+    requerir_admin();
     $data = body();
     $requeridos = ['nombre', 'descripcion', 'precio', 'categoria', 'imagen_url'];
 

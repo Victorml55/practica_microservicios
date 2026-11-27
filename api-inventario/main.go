@@ -4,17 +4,25 @@ package main
 // api-inventario: stock por producto guardado en memoria (map + sync.Mutex).
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 type Reserva struct {
 	ProductoID int `json:"producto_id" binding:"required,min=1"`
-	Cantidad   int `json:"cantidad" binding:"required,min=1"`
+	Cantidad   int `json:"cantidad" binding:"required,min=1,max=10000"`
 }
 
 // Inventario en memoria. El mutex evita que dos reservas simultáneas
@@ -49,6 +57,59 @@ func cors() gin.HandlerFunc {
 	}
 }
 
+// ---------- Seguridad ----------
+var bearerRe = regexp.MustCompile(`(?i)^Bearer\s+(\S+)$`)
+
+// esInterno: la petición viene de otro microservicio (api-pedidos) con X-Internal-Key
+func esInterno(c *gin.Context) bool {
+	clave := os.Getenv("INTERNAL_KEY")
+	recibida := c.GetHeader("X-Internal-Key")
+	return clave != "" && subtle.ConstantTimeCompare([]byte(clave), []byte(recibida)) == 1
+}
+
+// esAdmin: JWT HS256 válido (firmado con JWT_SECRET por api-usuarios) con rol "admin"
+func esAdmin(c *gin.Context) bool {
+	secreto := os.Getenv("JWT_SECRET")
+	m := bearerRe.FindStringSubmatch(c.GetHeader("Authorization"))
+	if secreto == "" || m == nil {
+		return false
+	}
+	partes := strings.Split(m[1], ".")
+	if len(partes) != 3 {
+		return false
+	}
+	mac := hmac.New(sha256.New, []byte(secreto))
+	mac.Write([]byte(partes[0] + "." + partes[1]))
+	esperada := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(esperada), []byte(partes[2])) {
+		return false
+	}
+	var cab struct {
+		Alg string `json:"alg"`
+	}
+	var payload struct {
+		Rol string  `json:"rol"`
+		Exp float64 `json:"exp"`
+	}
+	h, err1 := base64.RawURLEncoding.DecodeString(partes[0])
+	p, err2 := base64.RawURLEncoding.DecodeString(partes[1])
+	if err1 != nil || err2 != nil || json.Unmarshal(h, &cab) != nil || json.Unmarshal(p, &payload) != nil {
+		return false
+	}
+	return cab.Alg == "HS256" && payload.Rol == "admin" && int64(payload.Exp) >= time.Now().Unix()
+}
+
+// soloInternoOAdmin protege los endpoints que modifican el stock
+func soloInternoOAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if esInterno(c) || esAdmin(c) {
+			c.Next()
+			return
+		}
+		errorJSON(c, http.StatusUnauthorized, "Solo api-pedidos o un administrador pueden modificar el inventario")
+	}
+}
+
 func errorJSON(c *gin.Context, status int, msg string) {
 	c.AbortWithStatusJSON(status, gin.H{"error": msg})
 }
@@ -64,8 +125,9 @@ func leerReserva(c *gin.Context) (Reserva, bool) {
 }
 
 func setupRouter(inv *Inventario) *gin.Engine {
-	r := gin.Default()
-	r.Use(cors())
+	r := gin.New()
+	r.Use(gin.Logger(), gin.Recovery(), cors())
+	r.SetTrustedProxies(nil)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"servicio": "api-inventario", "ok": true})
@@ -89,7 +151,7 @@ func setupRouter(inv *Inventario) *gin.Engine {
 	})
 
 	// POST /api/inventario/reservar { producto_id, cantidad } -> descuenta; 400 si no alcanza
-	r.POST("/api/inventario/reservar", func(c *gin.Context) {
+	r.POST("/api/inventario/reservar", soloInternoOAdmin(), func(c *gin.Context) {
 		req, ok := leerReserva(c)
 		if !ok {
 			return
@@ -116,7 +178,7 @@ func setupRouter(inv *Inventario) *gin.Engine {
 
 	// POST /api/inventario/reabastecer { producto_id, cantidad } -> suma unidades
 	// Si el producto no existía, se da de alta con esa cantidad.
-	r.POST("/api/inventario/reabastecer", func(c *gin.Context) {
+	r.POST("/api/inventario/reabastecer", soloInternoOAdmin(), func(c *gin.Context) {
 		req, ok := leerReserva(c)
 		if !ok {
 			return
@@ -137,5 +199,6 @@ func setupRouter(inv *Inventario) *gin.Engine {
 }
 
 func main() {
+	gin.SetMode(gin.ReleaseMode)
 	setupRouter(nuevoInventario()).Run(":8004")
 }

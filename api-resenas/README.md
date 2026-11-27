@@ -8,7 +8,7 @@
 | Método | Ruta | Body / Respuesta |
 |---|---|---|
 | GET | `/api/resenas/producto/{producto_id}` | `{producto_id, promedio, total, resenas:[...]}` |
-| POST | `/api/resenas` | `{producto_id, usuario_id, calificacion (1-5), comentario}` → 201 |
+| POST | `/api/resenas` | **Bearer**. `{producto_id, calificacion (1-5), comentario}` → 201. El `usuario_id` se toma del token; una reseña por usuario y producto (400 si se repite) |
 
 ## Correr solo este servicio
 ```bash

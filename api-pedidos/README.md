@@ -10,14 +10,15 @@ Las tablas `pedidos` y `pedido_items` se crean solas al primer request.
 
 | Método | Ruta | Auth | Body → Respuesta |
 |---|---|---|---|
-| POST | `/api/pedidos` | Bearer | `{usuario_id, items:[{producto_id, cantidad, precio_unitario}], direccion, codigo_postal, costo_envio}` → 201 pedido en `pendiente` |
+| POST | `/api/pedidos` | Bearer | `{usuario_id, items:[{producto_id, cantidad}], direccion, codigo_postal}` → 201 pedido en `pendiente` |
 | GET | `/api/pedidos/usuario/{usuario_id}` | Bearer | Historial (más reciente primero) con `items`, `total`, `estado` y `guia` |
-| GET | `/api/pedidos/{id}` | — | Un pedido (útil para la confirmación y para que api-pagos consulte el `total`) |
-| PATCH | `/api/pedidos/{id}/estado` | — (interno) | `{estado}` → pedido actualizado |
+| GET | `/api/pedidos/{id}` | Bearer (dueño/admin) o `X-Internal-Key` | Un pedido (api-pagos lo consulta para verificar el `total`) |
+| PATCH | `/api/pedidos/{id}/estado` | `X-Internal-Key` (api-pagos) o admin | `{estado}` → pedido actualizado |
 
 - Con token, un usuario solo ve o crea **sus** pedidos (admin puede todo).
-- El `PATCH` no pide token porque lo llama **api-pagos** dentro de la red Docker.
-- El servidor calcula `subtotal` y `total` (`total = subtotal + costo_envio`). El monto que manda pagos debe ser el `total`.
+- El `PATCH` solo lo acepta **api-pagos** (header `X-Internal-Key`) o un admin: un cliente no puede marcar su pedido como pagado.
+- **El servidor no confía en el navegador:** toma el `precio_unitario` de api-productos, valida el stock en api-inventario y calcula `costo_envio` con api-envios. `total = subtotal + costo_envio`, y api-pagos exige que el monto sea exactamente ese `total`.
+- Si al pagar no alcanza el stock de algún producto, se devuelven las unidades ya reservadas, el pedido sigue en `pendiente` y el `PATCH` responde 400.
 
 ### Forma del pedido
 ```json

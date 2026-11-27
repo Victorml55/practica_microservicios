@@ -7,9 +7,9 @@
 ## Endpoints
 | Método | Ruta | Body / Respuesta |
 |---|---|---|
-| GET | `/api/carrito/{usuario_id}` | `{usuario_id, items:[{producto_id, cantidad}]}` |
-| POST | `/api/carrito/{usuario_id}/agregar` | `{producto_id, cantidad}` → si el producto ya está, sumar la cantidad |
-| DELETE | `/api/carrito/{usuario_id}/vaciar` | La llama api-pedidos al aprobarse el pago |
+| GET | `/api/carrito/{usuario_id}` (Bearer del dueño o admin) | `{usuario_id, items:[{producto_id, cantidad}]}` |
+| POST | `/api/carrito/{usuario_id}/agregar` (Bearer del dueño o admin) | `{producto_id, cantidad}` → si el producto ya está, sumar la cantidad |
+| DELETE | `/api/carrito/{usuario_id}/vaciar` | La llama api-pedidos al aprobarse el pago (`X-Internal-Key`), o el dueño con su token |
 
 ## Correr solo este servicio
 ```bash

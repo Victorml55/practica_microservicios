@@ -1,3 +1,8 @@
+import base64
+import hashlib
+import hmac
+import json
+import time
 import os
 import threading
 from datetime import datetime, timezone
@@ -31,6 +36,45 @@ async def validation_error(_: Request, exc: RequestValidationError):
     err = exc.errors()[0]
     campo = ".".join(str(p) for p in err["loc"] if p != "body") or "body"
     return JSONUTF8(status_code=400, content={"error": f"Dato inválido en '{campo}': {err['msg']}"})
+
+
+# ---------- Seguridad (sin dependencias extra) ----------
+def _b64url_decode(s: str) -> bytes:
+    return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+
+
+def verificar_jwt(request: Request) -> dict | None:
+    """Valida el JWT HS256 emitido por api-usuarios. Devuelve el payload o None."""
+    secreto = os.getenv("JWT_SECRET", "")
+    auth = request.headers.get("authorization", "")
+    if not secreto or not auth.lower().startswith("bearer "):
+        return None
+    partes = auth[7:].strip().split(".")
+    if len(partes) != 3:
+        return None
+    h, p, f = partes
+    esperada = base64.urlsafe_b64encode(
+        hmac.new(secreto.encode(), f"{h}.{p}".encode(), hashlib.sha256).digest()).rstrip(b"=").decode()
+    if not hmac.compare_digest(esperada, f):
+        return None
+    try:
+        if json.loads(_b64url_decode(h)).get("alg") != "HS256":
+            return None
+        payload = json.loads(_b64url_decode(p))
+    except ValueError:
+        return None
+    return payload if payload.get("exp", 0) >= time.time() else None
+
+
+def es_interno(request: Request) -> bool:
+    """La petición viene de otro microservicio (api-pedidos) con X-Internal-Key."""
+    clave = os.getenv("INTERNAL_KEY", "")
+    return bool(clave) and hmac.compare_digest(clave, request.headers.get("x-internal-key", ""))
+
+
+def es_admin(request: Request) -> bool:
+    t = verificar_jwt(request)
+    return bool(t) and t.get("rol") == "admin"
 
 
 # ---------- Modelos ----------
@@ -90,7 +134,10 @@ def cotizar(data: Cotizacion):
 
 
 @app.post("/api/envios/generar", status_code=201)
-def generar(data: GenerarGuia):
+def generar(data: GenerarGuia, request: Request):
+    # Solo api-pedidos (al confirmarse el pago) o un admin
+    if not (es_interno(request) or es_admin(request)):
+        raise HTTPException(401, "Solo api-pedidos o un administrador pueden generar guías")
     with _lock:
         # Si el pedido ya tenía guía, se regresa la misma (no se duplica)
         if data.pedido_id in guia_por_pedido:
@@ -112,9 +159,11 @@ def rastreo(guia: str):
 
 
 @app.patch("/api/envios/rastreo/{guia}/avanzar")
-def avanzar(guia: str):
-    """Extra para la demo: pasa la guía al siguiente estado
+def avanzar(guia: str, request: Request):
+    """Extra para la demo (solo admin): pasa la guía al siguiente estado
     (preparando -> en_transito -> entregado)."""
+    if not es_admin(request):
+        raise HTTPException(401, "Solo un administrador puede avanzar el envío")
     with _lock:
         envio = guias.get(guia.upper())
         if not envio:

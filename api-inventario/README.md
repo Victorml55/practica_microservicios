@@ -8,8 +8,8 @@
 | Método | Ruta | Body / Respuesta |
 |---|---|---|
 | GET | `/api/inventario/{producto_id}` | `{producto_id, disponibles}` |
-| POST | `/api/inventario/reservar` | `{producto_id, cantidad}` → 400 si no hay suficiente stock |
-| POST | `/api/inventario/reabastecer` | `{producto_id, cantidad}` |
+| POST | `/api/inventario/reservar` | `{producto_id, cantidad}` → 400 si no hay suficiente stock. **Solo `X-Internal-Key` o admin** |
+| POST | `/api/inventario/reabastecer` | `{producto_id, cantidad}`. **Solo `X-Internal-Key` o admin** |
 
 ## Correr solo este servicio
 ```bash

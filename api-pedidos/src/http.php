@@ -21,6 +21,13 @@ function body(): array {
     return is_array($data) ? $data : [];
 }
 
+// Llamadas entre servicios: header X-Internal-Key con el valor de INTERNAL_KEY (.env)
+function clave_interna_valida(): bool {
+    $esperada = getenv('INTERNAL_KEY') ?: '';
+    $recibida = $_SERVER['HTTP_X_INTERNAL_KEY'] ?? '';
+    return $esperada !== '' && hash_equals($esperada, $recibida);
+}
+
 function bearer(): ?string {
     $h = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
     return preg_match('/^Bearer\s+(.+)$/i', $h, $m) ? trim($m[1]) : null;
